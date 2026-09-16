@@ -23,10 +23,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { HaircutCard } from '@/components/consultation/HaircutCard';
 import { BarberDisplayModal } from '@/components/consultation/BarberDisplayModal';
 import { VirtualTryOnModal } from '@/components/consultation/VirtualTryOnModal';
+import { HairstyleGalleryWithFace } from '@/components/consultation/HairstyleGalleryWithFace';
 import { HAIRCUT_CATALOG, FACE_SHAPE_DETAILS } from '@/data/haircutCatalog';
 
 import { getSimulatedAnalysis } from '@/services/api';
-import { FaceAnalysisData, HaircutModel, ClientImages } from '@/types';
+import { FaceAnalysisData, HaircutModel, ClientImages, VarietyHairstyle } from '@/types';
+
 
 export default function ResultPage() {
   const router = useRouter();
@@ -96,7 +98,26 @@ export default function ResultPage() {
     }
   };
 
+  const handleShowVarietyToBarber = (variety: VarietyHairstyle) => {
+    setSelectedHaircutForBarber({
+      id: variety.id,
+      name: variety.name,
+      subtitle: variety.tagline,
+      category: 'Barbershop Top Pick',
+      imageUrl: variety.imageUrl,
+      matchReason: variety.tagline,
+      fadeType: variety.fadeType,
+      guardNumber: variety.guardNumber,
+      topLength: variety.topLength,
+      stylingDifficulty: 'Sedang',
+      stylingTips: variety.stylingTips,
+      recommendedProducts: variety.recommendedProducts,
+      barberNotes: variety.barberNotes,
+    });
+  };
+
   return (
+
     <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4 py-6 gap-6">
       {/* Top Banner Action Bar */}
       <div className="flex items-center justify-between pb-3 border-b border-surface-border">
@@ -290,38 +311,15 @@ export default function ResultPage() {
         )}
       </Card>
 
-      {/* Recommended Haircuts Section */}
-      <section className="space-y-4 pt-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-          <div>
-            <h2 className="text-xl md:text-2xl font-black text-zinc-100 flex items-center gap-2">
-              <Scissors className="w-5 h-5 text-barber-gold" />
-              Gaya Rambut Rekomendasi Teratas
-            </h2>
-            <p className="text-xs text-zinc-400">
-              Dipilih secara deterministik untuk mengimbangi geometri tulang wajah Anda.
-            </p>
-          </div>
-
-          <span className="text-xs text-barber-gold font-bold self-start sm:self-auto">
-            {recommendedHaircuts.length} Gaya Pilihan
-          </span>
-        </div>
-
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendedHaircuts.map((haircut, index) => (
-            <HaircutCard
-              key={haircut.id}
-              haircut={haircut}
-              rank={index + 1}
-              onShowToBarber={(item) => setSelectedHaircutForBarber(item)}
-              onTryOn={(item) => setSelectedHaircutForTryOn(item)}
-            />
-          ))}
-
-        </div>
+      {/* Dynamic Hairstyle Gallery with Customer Face & 5 Angle Views */}
+      <section className="pt-2">
+        <HairstyleGalleryWithFace
+          customerPhotoUrl={clientImages.front}
+          onUpdateCustomerPhoto={(url) => setClientImages((prev) => ({ ...prev, front: url }))}
+          onShowToBarber={handleShowVarietyToBarber}
+        />
       </section>
+
 
       {/* Styles to Avoid Warning Section */}
       <section className="rounded-3xl border border-accent-rose/30 bg-accent-rose/5 p-6 space-y-3">

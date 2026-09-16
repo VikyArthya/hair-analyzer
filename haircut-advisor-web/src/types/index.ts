@@ -92,3 +92,27 @@ export interface TryOnResponse {
   data: TryOnResult;
 }
 
+export interface HairstyleAngleViews {
+  front: string;
+  left: string;
+  right: string;
+  back: string;
+  threeQuarter: string;
+}
+
+export interface VarietyHairstyle {
+  id: string;
+  number: number;
+  name: string;
+  tagline: string;
+  imageUrl: string;
+  angles: HairstyleAngleViews;
+  guardNumber: string;
+  fadeType: string;
+  topLength: string;
+  barberNotes: string;
+  stylingTips: string[];
+  recommendedProducts: string[];
+}
+
+

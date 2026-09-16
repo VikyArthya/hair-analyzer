@@ -40,7 +40,7 @@ class VirtualTryOnService:
 
     @staticmethod
     def _create_fallback_blend(customer_bytes: bytes, haircut_bytes: Optional[bytes]) -> bytes:
-        """Create aesthetic visual preview by blending target hair tone & texture onto customer crown."""
+        """Create visual try-on by blending target haircut directly onto customer's face image."""
         try:
             nparr = np.frombuffer(customer_bytes, np.uint8)
             customer_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -49,54 +49,77 @@ class VirtualTryOnService:
 
             h, w = customer_img.shape[:2]
 
-            if haircut_bytes:
-                nparr_hair = np.frombuffer(haircut_bytes, np.uint8)
-                hair_img = cv2.imdecode(nparr_hair, cv2.IMREAD_COLOR)
-                if hair_img is not None:
-                    # Crop top 50% of reference haircut
-                    hh, hw = hair_img.shape[:2]
-                    hair_crop = hair_img[0 : int(hh * 0.55), :]
-                    # Resize to match customer head width
-                    target_w = int(w * 0.9)
-                    target_h = int(h * 0.45)
-                    hair_resized = cv2.resize(hair_crop, (target_w, target_h), interpolation=cv2.INTER_AREA)
+            if not haircut_bytes:
+                return customer_bytes
 
-                    # Create soft feathered mask
-                    mask = np.zeros((target_h, target_w), dtype=np.float32)
-                    cv2.ellipse(
-                        mask,
-                        (target_w // 2, int(target_h * 0.55)),
-                        (int(target_w * 0.48), int(target_h * 0.48)),
-                        0,
-                        0,
-                        360,
-                        1.0,
-                        -1,
-                    )
-                    mask = cv2.GaussianBlur(mask, (31, 31), 15)
+            nparr_hair = np.frombuffer(haircut_bytes, np.uint8)
+            hair_img = cv2.imdecode(nparr_hair, cv2.IMREAD_COLOR)
+            if hair_img is None:
+                return customer_bytes
 
-                    # Position at top center of customer image
-                    start_y = max(0, int(h * 0.02))
-                    end_y = min(h, start_y + target_h)
-                    start_x = max(0, (w - target_w) // 2)
-                    end_x = min(w, start_x + target_w)
+            # 1. Detect facial landmarks on customer to accurately position hair
+            forehead_y = int(h * 0.28)
+            temple_w = int(w * 0.75)
+            center_x = w // 2
 
-                    crop_h = end_y - start_y
-                    crop_w = end_x - start_x
+            try:
+                from app.services.face_mesh import face_mesh_service
+                landmarks = face_mesh_service.extract_landmarks(customer_img)
+                if landmarks and 10 in landmarks:
+                    forehead_y = int(landmarks[10][1])
+                if landmarks and 54 in landmarks and 284 in landmarks:
+                    temple_w = int(abs(landmarks[284][0] - landmarks[54][0]) * 1.35)
+                    center_x = int((landmarks[284][0] + landmarks[54][0]) / 2)
+            except Exception as e:
+                logger.debug("Landmark detection in try-on fallback skipped: %s", e)
 
-                    sub_mask = mask[:crop_h, :crop_w, np.newaxis]
-                    sub_hair = hair_resized[:crop_h, :crop_w]
+            # 2. Extract hair portion from reference image
+            hh, hw = hair_img.shape[:2]
+            hair_crop = hair_img[0 : int(hh * 0.52), :]
 
-                    roi = customer_img[start_y:end_y, start_x:end_x].astype(np.float32)
-                    blended = (sub_hair.astype(np.float32) * sub_mask) + (roi * (1.0 - sub_mask))
-                    customer_img[start_y:end_y, start_x:end_x] = np.clip(blended, 0, 255).astype(np.uint8)
+            # 3. Resize hair to match customer head proportions
+            target_w = max(50, min(w, temple_w))
+            target_h = int(target_w * (hair_crop.shape[0] / hair_crop.shape[1]))
+            hair_resized = cv2.resize(hair_crop, (target_w, target_h), interpolation=cv2.INTER_AREA)
+
+            # 4. Create soft feathered mask
+            mask = np.zeros((target_h, target_w), dtype=np.float32)
+            cv2.ellipse(
+                mask,
+                (target_w // 2, int(target_h * 0.50)),
+                (int(target_w * 0.46), int(target_h * 0.46)),
+                0,
+                0,
+                360,
+                1.0,
+                -1,
+            )
+            mask = cv2.GaussianBlur(mask, (25, 25), 11)
+
+            # 5. Position hair naturally sitting on top of forehead
+            start_y = max(0, forehead_y - int(target_h * 0.72))
+            end_y = min(h, start_y + target_h)
+            start_x = max(0, center_x - (target_w // 2))
+            end_x = min(w, start_x + target_w)
+
+            crop_h = end_y - start_y
+            crop_w = end_x - start_x
+
+            if crop_h > 0 and crop_w > 0:
+                sub_mask = mask[:crop_h, :crop_w, np.newaxis]
+                sub_hair = hair_resized[:crop_h, :crop_w]
+
+                roi = customer_img[start_y:end_y, start_x:end_x].astype(np.float32)
+                blended = (sub_hair.astype(np.float32) * sub_mask) + (roi * (1.0 - sub_mask))
+                customer_img[start_y:end_y, start_x:end_x] = np.clip(blended, 0, 255).astype(np.uint8)
 
             # Encode back to JPEG
-            _, buffer = cv2.imencode(".jpg", customer_img, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+            _, buffer = cv2.imencode(".jpg", customer_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
             return buffer.tobytes()
         except Exception as err:
             logger.error("Error creating fallback blend: %s", err)
             return customer_bytes
+
 
     async def execute_try_on(
         self,

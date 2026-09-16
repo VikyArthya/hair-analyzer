@@ -151,11 +151,11 @@ export async function requestVirtualTryOn(
       err.message?.includes('NetworkError') ||
       err.message?.includes('Load failed')
     ) {
-      console.warn('Backend service offline, returning simulated try-on...');
+      console.warn('Backend service offline, returning customer photo try-on fallback...');
       return {
         haircut_id: haircutId,
         haircut_name: haircutName,
-        after_image_base64: haircutImageUrl || customerImageDataUrl,
+        after_image_base64: customerImageDataUrl,
         barber_notes: barberNotes,
         is_simulation: true,
       };
@@ -163,4 +163,5 @@ export async function requestVirtualTryOn(
     throw err;
   }
 }
+
 

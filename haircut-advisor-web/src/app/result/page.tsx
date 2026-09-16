@@ -22,7 +22,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { HaircutCard } from '@/components/consultation/HaircutCard';
 import { BarberDisplayModal } from '@/components/consultation/BarberDisplayModal';
+import { VirtualTryOnModal } from '@/components/consultation/VirtualTryOnModal';
 import { HAIRCUT_CATALOG, FACE_SHAPE_DETAILS } from '@/data/haircutCatalog';
+
 import { getSimulatedAnalysis } from '@/services/api';
 import { FaceAnalysisData, HaircutModel, ClientImages } from '@/types';
 
@@ -36,7 +38,9 @@ export default function ResultPage() {
   });
   const [isMetricsOpen, setIsMetricsOpen] = useState<boolean>(false);
   const [selectedHaircutForBarber, setSelectedHaircutForBarber] = useState<HaircutModel | null>(null);
+  const [selectedHaircutForTryOn, setSelectedHaircutForTryOn] = useState<HaircutModel | null>(null);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
+
 
   useEffect(() => {
     try {
@@ -312,8 +316,10 @@ export default function ResultPage() {
               haircut={haircut}
               rank={index + 1}
               onShowToBarber={(item) => setSelectedHaircutForBarber(item)}
+              onTryOn={(item) => setSelectedHaircutForTryOn(item)}
             />
           ))}
+
         </div>
       </section>
 
@@ -375,6 +381,19 @@ export default function ResultPage() {
         isOpen={Boolean(selectedHaircutForBarber)}
         onClose={() => setSelectedHaircutForBarber(null)}
       />
+
+      {/* Interactive Virtual Try-On Before/After Modal */}
+      <VirtualTryOnModal
+        isOpen={Boolean(selectedHaircutForTryOn)}
+        onClose={() => setSelectedHaircutForTryOn(null)}
+        haircut={selectedHaircutForTryOn}
+        customerPhotoUrl={clientImages.front}
+        onShowToBarber={(haircut) => {
+          setSelectedHaircutForTryOn(null);
+          setSelectedHaircutForBarber(haircut);
+        }}
+      />
     </div>
   );
 }
+

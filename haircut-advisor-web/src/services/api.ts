@@ -1,6 +1,7 @@
-import { ClientImages, FaceAnalysisResponse, FaceAnalysisData } from '@/types';
+import { ClientImages, FaceAnalysisResponse, FaceAnalysisData, TryOnResult } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 
 /**
  * Converts a Base64 Data URL to a Blob
@@ -109,3 +110,57 @@ export function getSimulatedAnalysis(): FaceAnalysisData {
     },
   };
 }
+
+/**
+ * Request virtual haircut try-on from FastAPI backend
+ */
+export async function requestVirtualTryOn(
+  customerImageDataUrl: string,
+  haircutId?: string,
+  haircutName?: string,
+  haircutImageUrl?: string,
+  barberNotes?: string
+): Promise<TryOnResult> {
+  const formData = new FormData();
+  const customerBlob = dataUrlToBlob(customerImageDataUrl);
+  formData.append('customer_image', customerBlob, 'customer.jpg');
+
+  if (haircutId) formData.append('haircut_id', haircutId);
+  if (haircutName) formData.append('haircut_name', haircutName);
+  if (haircutImageUrl) formData.append('haircut_image_url', haircutImageUrl);
+  if (barberNotes) formData.append('barber_notes', barberNotes);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/try-on`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result?.detail || 'Gagal memproses virtual try-on.');
+    }
+
+    if (result.status === 'success' && result.data) {
+      return result.data as TryOnResult;
+    }
+    throw new Error(result.detail || 'Format respons try-on tidak sesuai.');
+  } catch (err: any) {
+    if (
+      err.message?.includes('Failed to fetch') ||
+      err.message?.includes('NetworkError') ||
+      err.message?.includes('Load failed')
+    ) {
+      console.warn('Backend service offline, returning simulated try-on...');
+      return {
+        haircut_id: haircutId,
+        haircut_name: haircutName,
+        after_image_base64: haircutImageUrl || customerImageDataUrl,
+        barber_notes: barberNotes,
+        is_simulation: true,
+      };
+    }
+    throw err;
+  }
+}
+

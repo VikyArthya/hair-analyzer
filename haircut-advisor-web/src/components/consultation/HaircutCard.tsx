@@ -11,13 +11,16 @@ interface HaircutCardProps {
   haircut: HaircutModel;
   rank: number;
   onShowToBarber: (haircut: HaircutModel) => void;
+  onTryOn?: (haircut: HaircutModel) => void;
 }
 
 export const HaircutCard: React.FC<HaircutCardProps> = ({
   haircut,
   rank,
   onShowToBarber,
+  onTryOn,
 }) => {
+
   return (
     <Card className="overflow-hidden border-surface-border bg-gradient-to-b from-surface to-surface-hover/80 hover:border-barber-gold/50 transition-all duration-300 flex flex-col group">
       {/* Haircut Reference Image */}
@@ -93,11 +96,23 @@ export const HaircutCard: React.FC<HaircutCardProps> = ({
           </div>
         </div>
 
-        {/* CTA "Tunjukkan ke Barber" */}
-        <div className="pt-2">
+        {/* Action Buttons */}
+        <div className="pt-2 flex flex-col gap-2">
+          {onTryOn && (
+            <Button
+              type="button"
+              onClick={() => onTryOn(haircut)}
+              className="w-full gap-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-barber-gold/20 via-amber-500/20 to-barber-gold/20 border border-barber-gold/50 text-barber-gold hover:bg-barber-gold/30 hover:border-barber-gold shadow-sm transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-barber-gold animate-pulse" />
+              <span>✨ Coba di Wajah Saya (After Cut)</span>
+            </Button>
+          )}
+
           <Button
+            variant="outline"
             onClick={() => onShowToBarber(haircut)}
-            className="w-full gap-2 rounded-xl text-sm font-bold shadow-md hover:brightness-110"
+            className="w-full gap-2 rounded-xl text-xs sm:text-sm font-bold border-surface-border hover:border-zinc-500 text-zinc-200"
           >
             <Eye className="w-4 h-4" />
             <span>Tunjukkan ke Barber</span>
@@ -107,3 +122,4 @@ export const HaircutCard: React.FC<HaircutCardProps> = ({
     </Card>
   );
 };
+

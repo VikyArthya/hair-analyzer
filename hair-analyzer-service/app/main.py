@@ -6,6 +6,7 @@ from fastapi import (
     FastAPI,
     UploadFile,
     File,
+    Form,
     HTTPException,
     Request,
     status,
@@ -17,10 +18,13 @@ from fastapi.exceptions import RequestValidationError
 from app.core.config import settings
 from app.schemas.face import (
     FaceAnalysisResponse,
+    TryOnResponse,
     ErrorResponse,
 )
 from app.services.face_mesh import face_mesh_service
 from app.services.classifier import FaceShapeClassifier
+from app.services.try_on import virtual_try_on_service
+
 
 
 @asynccontextmanager
@@ -196,3 +200,73 @@ async def analyze_face(
         status="success",
         data=analysis_data,
     )
+
+
+@app.post(
+    f"{settings.API_V1_STR}/try-on",
+    tags=["Virtual Try-On"],
+    summary="Virtual Haircut Try-On (Simulate hairstyle on customer photo)",
+    response_model=TryOnResponse,
+    responses={
+        200: {"model": TryOnResponse, "description": "Successful virtual try-on synthesis"},
+        400: {"model": ErrorResponse, "description": "Invalid image payload"},
+        413: {"model": ErrorResponse, "description": "Payload too large"},
+        422: {"model": ErrorResponse, "description": "Missing customer image"},
+        500: {"model": ErrorResponse, "description": "Synthesis error"},
+    },
+)
+async def virtual_try_on(
+    customer_image: UploadFile = File(
+        ...,
+        description="Front-facing photo of the customer.",
+    ),
+    haircut_id: Optional[str] = Form(
+        None,
+        description="Optional haircut identifier.",
+    ),
+    haircut_name: Optional[str] = Form(
+        None,
+        description="Human-readable title of the haircut.",
+    ),
+    haircut_image_url: Optional[str] = Form(
+        None,
+        description="Public URL or path to the target haircut model photo.",
+    ),
+    barber_notes: Optional[str] = Form(
+        None,
+        description="Barber styling and clipper instructions.",
+    ),
+):
+    """Synthesize a haircut onto the customer's face using AI or intelligent blending."""
+    if not customer_image or not customer_image.filename:
+        raise HTTPException(
+            status_code=422,
+            detail="Customer image is required for virtual try-on.",
+        )
+
+    customer_bytes = await customer_image.read()
+    if len(customer_bytes) == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Empty customer image provided.",
+        )
+
+    if len(customer_bytes) > settings.MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image file exceeds maximum allowed size of {settings.MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB.",
+        )
+
+    try_on_data = await virtual_try_on_service.execute_try_on(
+        customer_image_bytes=customer_bytes,
+        haircut_id=haircut_id,
+        haircut_name=haircut_name,
+        haircut_image_url=haircut_image_url,
+        barber_notes=barber_notes,
+    )
+
+    return TryOnResponse(
+        status="success",
+        data=try_on_data,
+    )
+

@@ -179,3 +179,34 @@ class ErrorResponse(BaseModel):
     )
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class TryOnData(BaseModel):
+    """Payload for virtual haircut try-on synthesis result."""
+
+    haircut_id: Optional[str] = Field(default=None, description="Identifier of the haircut model.")
+    haircut_name: Optional[str] = Field(default=None, description="Human readable haircut title.")
+    after_image_base64: str = Field(
+        ...,
+        description="Base64 data URL (e.g. data:image/jpeg;base64,...) of the resulting synthesized photo.",
+    )
+    barber_notes: Optional[str] = Field(
+        default=None,
+        description="Key barber clipper guard and styling notes for this cut.",
+    )
+    is_simulation: bool = Field(
+        default=False,
+        description="Whether fallback simulation was used.",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TryOnResponse(BaseModel):
+    """Response model for virtual haircut try-on endpoint."""
+
+    status: str = Field(default="success", examples=["success"])
+    data: TryOnData
+
+    model_config = ConfigDict(populate_by_name=True)
+

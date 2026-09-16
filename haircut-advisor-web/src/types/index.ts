@@ -78,3 +78,17 @@ export interface ConsultationSession {
   images: ClientImages;
   analysis: FaceAnalysisData;
 }
+
+export interface TryOnResult {
+  haircut_id?: string;
+  haircut_name?: string;
+  after_image_base64: string;
+  barber_notes?: string;
+  is_simulation?: boolean;
+}
+
+export interface TryOnResponse {
+  status: 'success' | 'error';
+  data: TryOnResult;
+}
+

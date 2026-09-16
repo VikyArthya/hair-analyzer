@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Image processing limits
     MAX_IMAGE_SIZE_BYTES: int = 15 * 1024 * 1024  # 15 MB
 
+    # Virtual Hair Try-On (Hugging Face / HairFastGAN)
+    HF_TOKEN: str = ""
+    HAIRFASTGAN_SPACE: str = "AIRI-Institute/HairFastGAN"
+    TRYON_TIMEOUT_SECONDS: int = 90
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

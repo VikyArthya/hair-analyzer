@@ -150,6 +150,14 @@ class GeneratedClientHaircut(BaseModel):
     styling_tips: List[str] = Field(default_factory=list, description="Step-by-step daily styling tips.")
     recommended_products: List[str] = Field(default_factory=list, description="Barbershop styling products.")
     barber_notes: str = Field(..., description="Technical clipper & scissor notes for the barber.")
+    reference_image_url: Optional[str] = Field(
+        default=None,
+        description="High-resolution reference barbershop model photo of this haircut.",
+    )
+    is_ai_tryon: bool = Field(
+        default=False,
+        description="Whether this card has been transformed with the client's actual face using AI.",
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 

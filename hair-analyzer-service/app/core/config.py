@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     # Image processing limits
     MAX_IMAGE_SIZE_BYTES: int = 15 * 1024 * 1024  # 15 MB
 
-    # Virtual Hair Try-On (Hugging Face / HairFastGAN)
+    # Virtual Hair Try-On (Hugging Face / Face-Swap)
     HF_TOKEN: str = ""
+    HF_FACESWAP_SPACE: str = "tonyassi/face-swap"
     HAIRFASTGAN_SPACE: str = "AIRI-Institute/HairFastGAN"
     TRYON_TIMEOUT_SECONDS: int = 90
 

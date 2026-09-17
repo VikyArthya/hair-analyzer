@@ -121,22 +121,22 @@ class VirtualTryOnService:
             return customer_bytes
 
 
-    def _run_hf_inference(self, cust_path: str, shape_path: Optional[str]) -> Optional[bytes]:
-        """Perform Hugging Face HairFastGAN space inference."""
+    def _run_hf_inference(self, cust_path: str, shape_path: Optional[str]) -> Optional[tuple[bytes, str]]:
+        """Perform Hugging Face Face-Swap space inference to swap customer face onto haircut model."""
+        if not shape_path:
+            return None
         try:
             from gradio_client import Client, handle_file
 
             client = Client(
-                settings.HAIRFASTGAN_SPACE,
-                hf_token=settings.HF_TOKEN if settings.HF_TOKEN else None,
+                settings.HF_FACESWAP_SPACE,
+                token=settings.HF_TOKEN if settings.HF_TOKEN else None,
             )
 
-            ref_path = shape_path if shape_path else cust_path
             predict_result = client.predict(
-                face=handle_file(cust_path),
-                shape=handle_file(ref_path),
-                color=handle_file(cust_path),
-                api_name="/predict",
+                src_img=handle_file(cust_path),
+                dest_img=handle_file(shape_path),
+                api_name="/swap_faces",
             )
 
             generated_path = None
@@ -146,10 +146,11 @@ class VirtualTryOnService:
                 generated_path = predict_result
 
             if generated_path and os.path.exists(generated_path):
+                mime = "image/webp" if generated_path.lower().endswith(".webp") else "image/jpeg"
                 with open(generated_path, "rb") as gf:
-                    return gf.read()
+                    return gf.read(), mime
         except Exception as hf_err:
-            logger.warning("Hugging Face HairFastGAN Space call skipped or failed: %s", hf_err)
+            logger.warning("Hugging Face Face-Swap Space call skipped or failed: %s", hf_err)
         return None
 
     async def execute_try_on(
@@ -160,14 +161,14 @@ class VirtualTryOnService:
         haircut_image_url: Optional[str] = None,
         barber_notes: Optional[str] = None,
     ) -> TryOnData:
-        """Execute virtual try-on via Hugging Face HairFastGAN or fallback synthesis."""
+        """Execute virtual try-on via Hugging Face Face-Swap or reference fallback."""
         haircut_bytes: Optional[bytes] = None
         if haircut_image_url:
             haircut_bytes = await self._download_image(haircut_image_url)
 
         # Attempt Hugging Face Space inference
         hf_success = False
-        result_bytes: Optional[bytes] = None
+        hf_result = None
 
         # Write customer and haircut images to temp files
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_cust:
@@ -181,24 +182,30 @@ class VirtualTryOnService:
                 shape_path = f_shape.name
 
         try:
-            result_bytes = self._run_hf_inference(cust_path, shape_path)
-            if result_bytes:
+            hf_result = self._run_hf_inference(cust_path, shape_path)
+            if hf_result:
+                if isinstance(hf_result, tuple):
+                    result_bytes, mime_type = hf_result
+                else:
+                    result_bytes = hf_result
+                    mime_type = "image/jpeg"
                 hf_success = True
-                logger.info("Successfully generated hairstyle using Hugging Face HairFastGAN.")
+                logger.info("Successfully generated hairstyle using Hugging Face Face-Swap.")
         finally:
             if os.path.exists(cust_path):
                 os.unlink(cust_path)
             if shape_path and os.path.exists(shape_path):
                 os.unlink(shape_path)
 
-        # If HF succeeded, use its result; otherwise use smart fallback blend
-        if not hf_success or not result_bytes:
-            result_bytes = self._create_fallback_blend(customer_image_bytes, haircut_bytes)
+        # If HF succeeded, use its result; otherwise use clean haircut reference image
+        if not hf_success or not hf_result:
+            result_bytes = haircut_bytes if haircut_bytes else customer_image_bytes
+            mime_type = "image/jpeg"
             is_simulation = True
         else:
             is_simulation = False
 
-        base64_url = self._to_base64_data_url(result_bytes, "image/jpeg")
+        base64_url = self._to_base64_data_url(result_bytes, mime_type)
 
         return TryOnData(
             haircut_id=haircut_id,

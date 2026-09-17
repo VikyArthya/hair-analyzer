@@ -69,12 +69,12 @@ def test_try_on_mocked_hf_success(tmp_path):
 
     with patch(
         "app.services.try_on.virtual_try_on_service._run_hf_inference",
-        return_value=fake_bytes,
+        return_value=(fake_bytes, "image/jpeg"),
     ):
         response = client.post("/api/v1/try-on", files=files, data=data)
         assert response.status_code == 200
         res = response.json()
         assert res["status"] == "success"
         assert res["data"]["is_simulation"] is False
-        assert res["data"]["after_image_base64"].startswith("data:image/jpeg;base64,")
+        assert res["data"]["after_image_base64"].startswith("data:image/")
 

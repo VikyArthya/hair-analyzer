@@ -54,6 +54,8 @@ export interface GeneratedClientHaircut {
   recommended_products?: string[];
   barber_notes: string;
   match_percentage?: number;
+  reference_image_url?: string;
+  is_ai_tryon?: boolean;
 }
 
 export interface FaceAnalysisData {

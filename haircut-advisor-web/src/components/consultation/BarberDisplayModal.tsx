@@ -5,7 +5,6 @@ import { HaircutModel, GeneratedClientHaircut } from '@/types';
 import { X, Scissors, Sparkles, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { HaircutVisualOverlay } from '@/components/consultation/HaircutVisualOverlay';
 
 interface BarberDisplayModalProps {
   haircut: (HaircutModel | GeneratedClientHaircut) | null;
@@ -121,12 +120,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 alt={haircut.name}
                 className="w-full h-full object-cover"
               />
-              <HaircutVisualOverlay
-                styleId={haircut.id}
-                styleName={haircut.name}
-                category={haircut.category}
-              />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 z-20">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5">
                 <h3 className="text-2xl font-black text-white">{haircut.name}</h3>
                 <p className="text-sm text-zinc-300">{haircut.subtitle}</p>
               </div>

@@ -277,4 +277,23 @@ export async function requestVirtualTryOn(
   }
 }
 
+/**
+ * Convenience wrapper for virtual try-on with object arguments
+ */
+export async function executeVirtualTryOn(params: {
+  customerImageDataUrl: string;
+  haircutId?: string;
+  haircutName?: string;
+  haircutImageUrl?: string;
+  barberNotes?: string;
+}): Promise<TryOnResult> {
+  return requestVirtualTryOn(
+    params.customerImageDataUrl,
+    params.haircutId,
+    params.haircutName,
+    params.haircutImageUrl,
+    params.barberNotes
+  );
+}
+
 

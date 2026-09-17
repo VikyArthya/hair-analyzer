@@ -27,7 +27,7 @@ async def test_lookbook_generator_produces_styles():
     for item in lookbook:
         assert item.id.startswith("ov-")
         assert len(item.name) > 0
-        assert item.generated_image_url.startswith("data:image/jpeg;base64,")
+        assert item.generated_image_url.startswith("data:image/") or item.generated_image_url.startswith("http")
         assert len(item.why_it_fits) > 0
         assert len(item.barber_notes) > 0
 

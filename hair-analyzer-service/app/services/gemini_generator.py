@@ -1,17 +1,19 @@
-"""Google Gemini AI service for generating personalized hairstyle lookbooks directly on client portraits."""
+"""Google Gemini AI & Hugging Face AI lookbook generator."""
 
+import os
 import io
 import base64
 import asyncio
+import tempfile
+import logging
 from typing import List, Dict, Any, Optional
-import cv2
-import numpy as np
-from PIL import Image
+import httpx
 
 from app.core.config import settings
 from app.schemas.face import GeneratedClientHaircut
+from app.services.try_on import virtual_try_on_service
 
-
+logger = logging.getLogger("gemini_generator")
 class GeminiLookbookGenerator:
     """Generates 6-8 tailored hairstyle variations rendered directly on the client's photographed face."""
 
@@ -20,6 +22,7 @@ class GeminiLookbookGenerator:
         "square": [
             {
                 "id": "sq-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured French Crop",
                 "subtitle": "Mid Drop Fade with Textured Fringe",
                 "category": "Crop & Fringe",
@@ -38,6 +41,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80",
                 "name": "Classic Side Part Taper",
                 "subtitle": "Executive Low Temple Fade",
                 "category": "Gentleman Classic",
@@ -56,6 +60,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=800&auto=format&fit=crop&q=80",
                 "name": "Buzz Cut with Beard Fade",
                 "subtitle": "High Contrast Clean Aesthetic",
                 "category": "Short & Crisp",
@@ -74,6 +79,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "Modern Textured Quiff",
                 "subtitle": "Dynamic Mid Skin Taper",
                 "category": "Volumetric Modern",
@@ -92,6 +98,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured Crew Cut",
                 "subtitle": "Short Tapered Athleisure",
                 "category": "Short & Crisp",
@@ -107,6 +114,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=800&auto=format&fit=crop&q=80",
                 "name": "Ivy League Side Sweep",
                 "subtitle": "Smart Casual Subtle Fade",
                 "category": "Gentleman Classic",
@@ -122,6 +130,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-7",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "Faux Hawk Fade",
                 "subtitle": "Angular Center Ridge",
                 "category": "Volumetric Modern",
@@ -137,6 +146,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "sq-8",
+                "reference_image_url": "https://images.unsplash.com/photo-1513956589380-bad6acb9b9d4?w=800&auto=format&fit=crop&q=80",
                 "name": "Slicked Undercut",
                 "subtitle": "Bold Disconnected Profile",
                 "category": "Slicked Style",
@@ -154,6 +164,7 @@ class GeminiLookbookGenerator:
         "oval": [
             {
                 "id": "ov-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "Classic Pompadour",
                 "subtitle": "High Volume Taper Fade",
                 "category": "Iconic Classic",
@@ -169,6 +180,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80",
                 "name": "Mid Fade Slick Back",
                 "subtitle": "Streamlined Executive Flow",
                 "category": "Slicked Style",
@@ -184,6 +196,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
                 "name": "Modern Textured Mullet / Taper",
                 "subtitle": "Contemporary Edge with Flow",
                 "category": "Modern Trend",
@@ -199,6 +212,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&auto=format&fit=crop&q=80",
                 "name": "Side Swept Quiff",
                 "subtitle": "Natural Diagonal Volume",
                 "category": "Volumetric Modern",
@@ -214,6 +228,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "French Crop with Textured Bangs",
                 "subtitle": "Urban Minimalist",
                 "category": "Crop & Fringe",
@@ -229,6 +244,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=800&auto=format&fit=crop&q=80",
                 "name": "Buzz Cut Line-Up",
                 "subtitle": "Ultra Clean Precision",
                 "category": "Short & Crisp",
@@ -244,6 +260,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-7",
+                "reference_image_url": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&auto=format&fit=crop&q=80",
                 "name": "Curtain Middle Part",
                 "subtitle": "90s Retro Modern Flow",
                 "category": "Medium Flow",
@@ -259,6 +276,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ov-8",
+                "reference_image_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80",
                 "name": "Tapered Scissor Cut",
                 "subtitle": "Timeless Professional",
                 "category": "Gentleman Classic",
@@ -276,6 +294,7 @@ class GeminiLookbookGenerator:
         "round": [
             {
                 "id": "rd-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "High Skin Fade Pompadour",
                 "subtitle": "Vertical Elongation Master",
                 "category": "Angular & Height",
@@ -291,6 +310,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "rd-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "Faux Hawk Burst Fade",
                 "subtitle": "Sharp Angular Focus",
                 "category": "Angular & Height",
@@ -306,6 +326,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "rd-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80",
                 "name": "Side Part Quiff with Drop Fade",
                 "subtitle": "Structured Diagonal Flow",
                 "category": "Gentleman Classic",
@@ -321,6 +342,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "rd-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
                 "name": "Spiky Textured Top Fade",
                 "subtitle": "Crisp Upward Definition",
                 "category": "Short & Crisp",
@@ -336,6 +358,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "rd-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured Crop with High Fade",
                 "subtitle": "Horizontal Fringe Breakup",
                 "category": "Crop & Fringe",
@@ -351,6 +374,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "rd-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80",
                 "name": "Hard Part Combover",
                 "subtitle": "Sharp Geometric Parting",
                 "category": "Gentleman Classic",
@@ -368,6 +392,7 @@ class GeminiLookbookGenerator:
         "oblong": [
             {
                 "id": "ob-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured Crew Cut (Scissor Sides)",
                 "subtitle": "Balanced Proportion Cut",
                 "category": "Short & Crisp",
@@ -383,6 +408,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ob-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&auto=format&fit=crop&q=80",
                 "name": "Side Swept Fringe Drop Fade",
                 "subtitle": "Forehead Shortener",
                 "category": "Crop & Fringe",
@@ -398,6 +424,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ob-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80",
                 "name": "Classic Side Part Taper",
                 "subtitle": "Horizontal Width Balance",
                 "category": "Gentleman Classic",
@@ -413,6 +440,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ob-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "Messy Caesar Cut with Beard",
                 "subtitle": "Horizontal Symmetry",
                 "category": "Crop & Fringe",
@@ -428,6 +456,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ob-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=800&auto=format&fit=crop&q=80",
                 "name": "Buzz Cut with Full Beard",
                 "subtitle": "Rugged Compact Profile",
                 "category": "Short & Crisp",
@@ -443,6 +472,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ob-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80",
                 "name": "Layered Scissor Flow",
                 "subtitle": "Medium Side Fullness",
                 "category": "Medium Flow",
@@ -460,6 +490,7 @@ class GeminiLookbookGenerator:
         "heart": [
             {
                 "id": "ht-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80",
                 "name": "Mid-Length Textured Waves",
                 "subtitle": "Jawline Balancing Flow",
                 "category": "Medium Flow",
@@ -475,6 +506,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ht-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&auto=format&fit=crop&q=80",
                 "name": "Curtain Fringe Low Taper",
                 "subtitle": "Forehead Slimmer",
                 "category": "Medium Flow",
@@ -490,6 +522,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ht-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured Crop with Beard",
                 "subtitle": "Lower Face Anchor",
                 "category": "Crop & Fringe",
@@ -505,6 +538,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ht-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1513956589380-bad6acb9b9d4?w=800&auto=format&fit=crop&q=80",
                 "name": "Side Swept Undercut",
                 "subtitle": "Asymmetric Temple Cover",
                 "category": "Modern Trend",
@@ -520,6 +554,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ht-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=800&auto=format&fit=crop&q=80",
                 "name": "Classic Crew Cut with Scissor Sides",
                 "subtitle": "Balanced Everyday Cut",
                 "category": "Short & Crisp",
@@ -535,6 +570,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "ht-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80",
                 "name": "Messy Fringe with Stubble",
                 "subtitle": "Casual Youthful Texture",
                 "category": "Crop & Fringe",
@@ -552,6 +588,7 @@ class GeminiLookbookGenerator:
         "diamond": [
             {
                 "id": "dm-1",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "Messy Textured Crop with Fringe",
                 "subtitle": "Cheekbone Softener",
                 "category": "Crop & Fringe",
@@ -567,6 +604,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "dm-2",
+                "reference_image_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80",
                 "name": "Layered Scissor Cut with Full Beard",
                 "subtitle": "Organic Proportional Balance",
                 "category": "Natural Texture",
@@ -582,6 +620,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "dm-3",
+                "reference_image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
                 "name": "Side Swept Quiff Low Fade",
                 "subtitle": "Broadening Upper Contour",
                 "category": "Volumetric Modern",
@@ -597,6 +636,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "dm-4",
+                "reference_image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
                 "name": "Textured Modern Mullet",
                 "subtitle": "Angular Flow",
                 "category": "Modern Trend",
@@ -612,6 +652,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "dm-5",
+                "reference_image_url": "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=800&auto=format&fit=crop&q=80",
                 "name": "French Crop with Heavy Texture",
                 "subtitle": "Horizontal Denser Top",
                 "category": "Crop & Fringe",
@@ -627,6 +668,7 @@ class GeminiLookbookGenerator:
             },
             {
                 "id": "dm-6",
+                "reference_image_url": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&auto=format&fit=crop&q=80",
                 "name": "Casual Curtain Flow",
                 "subtitle": "Soft Cheekbone Frame",
                 "category": "Medium Flow",
@@ -650,332 +692,52 @@ class GeminiLookbookGenerator:
         return cls.LOOKBOOK_TEMPLATES.get(key, cls.LOOKBOOK_TEMPLATES["square"])
 
     @classmethod
-    def generate_simulated_client_image(
-        cls,
-        client_bgr: np.ndarray,
-        haircut_name: str,
-        category: str,
-        style_idx: int,
-    ) -> str:
-        """Create a realistic client-personalized preview with the haircut visibly synthesized on the client's face."""
-        h, w = client_bgr.shape[:2]
-        canvas = client_bgr.copy()
-
-        # 1. Determine facial landmark anchors (forehead, temples, ears, chin)
-        center_x = w // 2
-        forehead_y = int(h * 0.32)
-        temple_w = int(w * 0.58)
-
-        try:
-            from app.services.face_mesh import face_mesh_service
-            # Use raw mediapipe processing without raising HTTPException
-            rgb = cv2.cvtColor(client_bgr, cv2.COLOR_BGR2RGB)
-            results = face_mesh_service._mesh.process(rgb)
-            if results.multi_face_landmarks:
-                raw_lms = results.multi_face_landmarks[0].landmark
-                # Landmark 10: trichion/hairline center
-                forehead_y = int(raw_lms[10].y * h)
-                # Landmarks 54 & 284: temples
-                tx1 = int(raw_lms[54].x * w)
-                tx2 = int(raw_lms[284].x * w)
-                temple_w = int(abs(tx2 - tx1) * 1.32)
-                center_x = int((tx1 + tx2) / 2)
-        except Exception:
-            pass
-
-        # 2. Sample natural hair color and skin color from the client
-        sample_hair_y = max(0, forehead_y - int(h * 0.08))
-        sample_region = client_bgr[sample_hair_y:forehead_y, max(0, center_x - 30):min(w, center_x + 30)]
-        if sample_region.size > 0:
-            median_color = np.median(sample_region, axis=(0, 1)).astype(np.uint8)
-            # Ensure it is reasonably dark for hair
-            hair_b = min(50, int(median_color[0]))
-            hair_g = min(45, int(median_color[1]))
-            hair_r = min(40, int(median_color[2]))
-            hair_color = np.array([hair_b, hair_g, hair_r], dtype=np.uint8)
-        else:
-            hair_color = np.array([30, 25, 20], dtype=np.uint8)
-
-        # Skin sample from mid forehead
-        skin_sample = client_bgr[min(h - 1, forehead_y + 35):min(h - 1, forehead_y + 55), max(0, center_x - 20):min(w, center_x + 20)]
-        if skin_sample.size > 0:
-            skin_color = np.median(skin_sample, axis=(0, 1)).astype(np.float32)
-        else:
-            skin_color = np.array([180, 145, 125], dtype=np.float32)
-
-        # 3. Synthesize specific haircut style based on name and category
-        style_lower = (haircut_name + " " + category).lower()
-
-        # STYLE A: French Crop / Textured Fringe
-        if "crop" in style_lower or "fringe" in style_lower or style_idx == 0:
-            # Choppy textured fringe dropping down forehead
-            fringe_h = int(h * 0.075)
-            fringe_pts = [[center_x - temple_w // 2, forehead_y - 15]]
-            step = max(8, temple_w // 18)
-            for i, x in enumerate(range(center_x - temple_w // 2, center_x + temple_w // 2 + 1, step)):
-                jag = fringe_h if i % 2 == 0 else fringe_h - int(step * 0.9)
-                fringe_pts.append([x, forehead_y + jag])
-            fringe_pts.append([center_x + temple_w // 2, forehead_y - 15])
-
-            fringe_mask = np.zeros((h, w), dtype=np.float32)
-            cv2.fillPoly(fringe_mask, [np.array(fringe_pts, dtype=np.int32)], 1.0)
-            fringe_mask = cv2.GaussianBlur(fringe_mask, (11, 11), 3)
-
-            for c in range(3):
-                canvas[:, :, c] = np.clip(
-                    canvas[:, :, c].astype(np.float32) * (1.0 - fringe_mask) + (hair_color[c] * 0.9) * fringe_mask,
-                    0, 255
-                ).astype(np.uint8)
-
-            # Mid Drop Fade on sides
-            fade_mask = np.zeros((h, w), dtype=np.float32)
-            side_radius = int(temple_w * 0.18)
-            cv2.ellipse(fade_mask, (center_x - temple_w // 2 - 8, forehead_y + int(h * 0.06)), (side_radius, int(h * 0.10)), 0, 0, 360, 0.75, -1)
-            cv2.ellipse(fade_mask, (center_x + temple_w // 2 + 8, forehead_y + int(h * 0.06)), (side_radius, int(h * 0.10)), 0, 0, 360, 0.75, -1)
-            fade_mask = cv2.GaussianBlur(fade_mask, (21, 21), 7)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - fade_mask) + skin_color[c] * fade_mask, 0, 255).astype(np.uint8)
-
-        # STYLE B: Classic Side Part / Taper
-        elif "side part" in style_lower or "part" in style_lower or "classic" in style_lower or style_idx == 1:
-            # Clean razor parted line on the left
-            part_start_x = center_x - int(temple_w * 0.28)
-            part_end_x = center_x - int(temple_w * 0.15)
-            part_y1 = forehead_y
-            part_y2 = max(0, forehead_y - int(h * 0.12))
-            cv2.line(canvas, (part_start_x, part_y1), (part_end_x, part_y2), (int(skin_color[0] * 0.85), int(skin_color[1] * 0.85), int(skin_color[2] * 0.85)), 2)
-
-            # Sleek combed layer with directional shine
-            sweep_mask = np.zeros((h, w), dtype=np.float32)
-            sweep_poly = np.array([
-                [part_start_x + 6, part_y1],
-                [center_x + int(temple_w * 0.45), forehead_y - 5],
-                [center_x + int(temple_w * 0.35), max(0, forehead_y - int(h * 0.14))],
-                [part_end_x + 6, part_y2],
-            ], dtype=np.int32)
-            cv2.fillPoly(sweep_mask, [sweep_poly], 0.45)
-            sweep_mask = cv2.GaussianBlur(sweep_mask, (15, 15), 5)
-            shine_color = np.array([hair_color[0] + 35, hair_color[1] + 30, hair_color[2] + 25], dtype=np.float32)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - sweep_mask) + shine_color[c] * sweep_mask, 0, 255).astype(np.uint8)
-
-            # Low taper on sideburns
-            taper_mask = np.zeros((h, w), dtype=np.float32)
-            cv2.ellipse(taper_mask, (center_x - temple_w // 2 - 5, forehead_y + int(h * 0.08)), (18, int(h * 0.07)), 0, 0, 360, 0.65, -1)
-            cv2.ellipse(taper_mask, (center_x + temple_w // 2 + 5, forehead_y + int(h * 0.08)), (18, int(h * 0.07)), 0, 0, 360, 0.65, -1)
-            taper_mask = cv2.GaussianBlur(taper_mask, (15, 15), 5)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - taper_mask) + skin_color[c] * taper_mask, 0, 255).astype(np.uint8)
-
-        # STYLE C: Buzz Cut with Beard Fade / Clean Lineup
-        elif "buzz" in style_lower or "crew" in style_lower or "military" in style_lower or style_idx == 2:
-            # Shave down top volume to skull contour
-            top_cut_y = max(0, forehead_y - int(h * 0.07))
-            fade_top_mask = np.zeros((h, w), dtype=np.float32)
-            cv2.rectangle(fade_top_mask, (0, 0), (w, top_cut_y), 0.7, -1)
-            fade_top_mask = cv2.GaussianBlur(fade_top_mask, (25, 25), 9)
-
-            # Clean sharp lineup box across forehead
-            lineup_y = forehead_y + int(h * 0.01)
-            cv2.line(canvas, (center_x - int(temple_w * 0.44), lineup_y), (center_x + int(temple_w * 0.44), lineup_y), (15, 12, 10), 3)
-            # 90 degree temple corner cuts
-            cv2.line(canvas, (center_x - int(temple_w * 0.44), lineup_y), (center_x - int(temple_w * 0.44), lineup_y + 18), (15, 12, 10), 2)
-            cv2.line(canvas, (center_x + int(temple_w * 0.44), lineup_y), (center_x + int(temple_w * 0.44), lineup_y + 18), (15, 12, 10), 2)
-
-            # High skin fade
-            skin_fade = np.zeros((h, w), dtype=np.float32)
-            cv2.ellipse(skin_fade, (center_x - temple_w // 2 - 12, forehead_y + int(h * 0.04)), (int(temple_w * 0.22), int(h * 0.12)), 0, 0, 360, 0.82, -1)
-            cv2.ellipse(skin_fade, (center_x + temple_w // 2 + 12, forehead_y + int(h * 0.04)), (int(temple_w * 0.22), int(h * 0.12)), 0, 0, 360, 0.82, -1)
-            skin_fade = cv2.GaussianBlur(skin_fade, (25, 25), 9)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - skin_fade) + skin_color[c] * skin_fade, 0, 255).astype(np.uint8)
-
-        # STYLE D: Modern Textured Quiff / Pompadour
-        elif "quiff" in style_lower or "pompadour" in style_lower or style_idx == 3:
-            # Lifted vertical volume on top
-            quiff_h = int(h * 0.14)
-            quiff_pts = np.array([
-                [center_x - int(temple_w * 0.35), forehead_y + 8],
-                [center_x - int(temple_w * 0.25), max(0, forehead_y - quiff_h)],
-                [center_x, max(0, forehead_y - int(quiff_h * 1.15))],
-                [center_x + int(temple_w * 0.30), max(0, forehead_y - quiff_h)],
-                [center_x + int(temple_w * 0.38), forehead_y + 8],
-            ], dtype=np.int32)
-
-            quiff_mask = np.zeros((h, w), dtype=np.float32)
-            cv2.fillPoly(quiff_mask, [quiff_pts], 0.85)
-            quiff_mask = cv2.GaussianBlur(quiff_mask, (13, 13), 4)
-
-            # Volumized strand streaks
-            for c in range(3):
-                canvas[:, :, c] = np.clip(
-                    canvas[:, :, c].astype(np.float32) * (1.0 - quiff_mask) + (hair_color[c] * 1.05) * quiff_mask,
-                    0, 255
-                ).astype(np.uint8)
-
-            # Low Skin Fade on temples
-            low_fade = np.zeros((h, w), dtype=np.float32)
-            cv2.ellipse(low_fade, (center_x - temple_w // 2 - 8, forehead_y + int(h * 0.07)), (22, int(h * 0.08)), 0, 0, 360, 0.7, -1)
-            cv2.ellipse(low_fade, (center_x + temple_w // 2 + 8, forehead_y + int(h * 0.07)), (22, int(h * 0.08)), 0, 0, 360, 0.7, -1)
-            low_fade = cv2.GaussianBlur(low_fade, (17, 17), 6)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - low_fade) + skin_color[c] * low_fade, 0, 255).astype(np.uint8)
-
-        # STYLE E: Messy Spiky Texture
-        elif "spiky" in style_lower or "spike" in style_lower or style_idx == 4:
-            # Piecey multi-directional spikes
-            spike_mask = np.zeros((h, w), dtype=np.float32)
-            num_spikes = 7
-            spacing = int(temple_w * 0.75) // num_spikes
-            base_x = center_x - int(temple_w * 0.38)
-            for s in range(num_spikes):
-                sx = base_x + s * spacing
-                sy_base = forehead_y - int(h * 0.04)
-                spike_len = int(h * 0.08) if s % 2 == 0 else int(h * 0.06)
-                spike_poly = np.array([
-                    [sx - 7, sy_base],
-                    [sx, max(0, sy_base - spike_len)],
-                    [sx + 7, sy_base],
-                ], dtype=np.int32)
-                cv2.fillPoly(spike_mask, [spike_poly], 0.9)
-
-            spike_mask = cv2.GaussianBlur(spike_mask, (7, 7), 2)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(
-                    canvas[:, :, c].astype(np.float32) * (1.0 - spike_mask) + (hair_color[c] * 0.95) * spike_mask,
-                    0, 255
-                ).astype(np.uint8)
-
-        # STYLE F: Slicked Back Undercut
-        else:
-            # Deep sleek sweep backwards
-            slick_mask = np.zeros((h, w), dtype=np.float32)
-            slick_poly = np.array([
-                [center_x - int(temple_w * 0.35), forehead_y],
-                [center_x - int(temple_w * 0.32), max(0, forehead_y - int(h * 0.13))],
-                [center_x + int(temple_w * 0.32), max(0, forehead_y - int(h * 0.13))],
-                [center_x + int(temple_w * 0.35), forehead_y],
-            ], dtype=np.int32)
-            cv2.fillPoly(slick_mask, [slick_poly], 0.75)
-            slick_mask = cv2.GaussianBlur(slick_mask, (15, 15), 5)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(
-                    canvas[:, :, c].astype(np.float32) * (1.0 - slick_mask) + (hair_color[c] * 0.8) * slick_mask,
-                    0, 255
-                ).astype(np.uint8)
-
-            # High disconnected undercut
-            undercut_mask = np.zeros((h, w), dtype=np.float32)
-            cv2.ellipse(undercut_mask, (center_x - temple_w // 2 - 10, forehead_y + int(h * 0.05)), (int(temple_w * 0.20), int(h * 0.10)), 0, 0, 360, 0.85, -1)
-            cv2.ellipse(undercut_mask, (center_x + temple_w // 2 + 10, forehead_y + int(h * 0.05)), (int(temple_w * 0.20), int(h * 0.10)), 0, 0, 360, 0.85, -1)
-            undercut_mask = cv2.GaussianBlur(undercut_mask, (21, 21), 7)
-            for c in range(3):
-                canvas[:, :, c] = np.clip(canvas[:, :, c].astype(np.float32) * (1.0 - undercut_mask) + skin_color[c] * undercut_mask, 0, 255).astype(np.uint8)
-
-        # 4. Cinematic barbershop studio lighting grade
-        img_float = canvas.astype(np.float32) / 255.0
-        contrasted = np.clip((img_float - 0.5) * 1.08 + 0.51, 0, 1)
-        contrasted[:, :, 0] *= 0.97  # Blue
-        contrasted[:, :, 1] *= 1.01  # Green
-        contrasted[:, :, 2] *= 1.04  # Red
-        graded = (np.clip(contrasted, 0, 1) * 255).astype(np.uint8)
-
-        # Encode to JPEG base64 Data URL
-        success, encoded = cv2.imencode(".jpg", graded, [cv2.IMWRITE_JPEG_QUALITY, 92])
-        if not success:
-            _, encoded = cv2.imencode(".jpg", canvas)
-
-        b64_str = base64.b64encode(encoded.tobytes()).decode("utf-8")
-        return f"data:image/jpeg;base64,{b64_str}"
-
-    @classmethod
-    def generate_single_style_gemini(
-        cls,
-        client_bgr: np.ndarray,
-        haircut: Dict[str, Any],
-        face_shape: str,
-        style_idx: int,
-    ) -> str:
-        """Generate a personalized hairstyle photo on the client's face using Google Gemini AI."""
-        # If API key is not configured, use the high-fidelity client portrait generator
-        if not settings.GEMINI_API_KEY:
-            return cls.generate_simulated_client_image(
-                client_bgr, haircut["name"], haircut["category"], style_idx
-            )
-
-        try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-            # Encode client's face to bytes for prompt input
-            success, enc_jpg = cv2.imencode(".jpg", client_bgr)
-            client_bytes = enc_jpg.tobytes() if success else b""
-
-            prompt_text = (
-                f"A photorealistic, ultra-high resolution barbershop portrait of this exact man, "
-                f"retaining his exact facial identity, skin tone, facial hair, eyes, and jaw structure. "
-                f"Change his hairstyle to a {haircut['name']}: {haircut['haircut_prompt']}. "
-                f"The haircut is precisely cut for his {face_shape} face shape with {haircut['fade_type']}. "
-                f"Professional barbershop studio lighting, sharp focus, 8k, authentic, cinematic."
-            )
-
-            # Attempt Gemini Image Generation (active when project has image quota/billing enabled)
-            try:
-                response = client.models.generate_content(
-                    model=settings.GEMINI_IMAGE_MODEL,
-                    contents=[
-                        types.Part.from_bytes(data=client_bytes, mime_type="image/jpeg"),
-                        prompt_text,
-                    ],
-                )
-                if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-                    for part in response.candidates[0].content.parts:
-                        if getattr(part, "inline_data", None) and part.inline_data.data:
-                            b64_str = base64.b64encode(part.inline_data.data).decode("utf-8")
-                            mime = getattr(part.inline_data, "mime_type", "image/jpeg") or "image/jpeg"
-                            return f"data:{mime};base64,{b64_str}"
-            except Exception as img_err:
-                print(f"Gemini image generation note (quota/free-tier): {img_err}")
-
-            # Fallback to high-fidelity landmark hair synthesis
-            return cls.generate_simulated_client_image(
-                client_bgr, haircut["name"], haircut["category"], style_idx
-            )
-
-        except Exception as e:
-            print(f"Gemini generator error for {haircut['name']}: {e}")
-            return cls.generate_simulated_client_image(
-                client_bgr, haircut["name"], haircut["category"], style_idx
-            )
-
-    @classmethod
     def generate_lookbook_sync(
         cls,
         client_image_bytes: bytes,
         face_shape: str,
         max_styles: int = 8,
     ) -> List[GeneratedClientHaircut]:
-        """Generate 6 to 8 tailored haircut variations rendered on the client's own face."""
-        np_arr = np.frombuffer(client_image_bytes, np.uint8)
-        client_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-        if client_bgr is None:
-            # Fallback blank canvas if decode fails
-            client_bgr = np.full((600, 450, 3), 128, dtype=np.uint8)
-
+        """Generate 6 to 8 tailored haircut variations with the top recommendation pre-rendered using Hugging Face AI."""
         templates = cls.get_templates_for_shape(face_shape)[:max_styles]
         generated_list: List[GeneratedClientHaircut] = []
 
         for idx, template in enumerate(templates):
-            # Render the client's own face with the new hairstyle
-            image_url = cls.generate_single_style_gemini(
-                client_bgr=client_bgr,
-                haircut=template,
-                face_shape=face_shape,
-                style_idx=idx,
+            ref_url = template.get(
+                "reference_image_url",
+                "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80",
             )
+            image_url = ref_url
+            is_ai_tryon = False
+
+            # For the #1 top recommendation: pre-generate the AI face-swap directly onto the client's face
+            if idx == 0 and settings.HF_TOKEN:
+                try:
+                    with httpx.Client(timeout=15.0) as http_client:
+                        ref_resp = http_client.get(ref_url)
+                        if ref_resp.status_code == 200:
+                            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_cust, \
+                                 tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_ref:
+                                f_cust.write(client_image_bytes)
+                                f_ref.write(ref_resp.content)
+                                cust_p = f_cust.name
+                                ref_p = f_ref.name
+                            try:
+                                hf_res = virtual_try_on_service._run_hf_inference(cust_p, ref_p)
+                                if hf_res:
+                                    if isinstance(hf_res, tuple):
+                                        img_bytes, mime = hf_res
+                                    else:
+                                        img_bytes, mime = hf_res, "image/jpeg"
+                                    image_url = virtual_try_on_service._to_base64_data_url(img_bytes, mime)
+                                    is_ai_tryon = True
+                            finally:
+                                if os.path.exists(cust_p):
+                                    os.unlink(cust_p)
+                                if os.path.exists(ref_p):
+                                    os.unlink(ref_p)
+                except Exception as e:
+                    logger.warning("Top recommendation AI try-on skipped: %s", e)
 
             haircut_obj = GeneratedClientHaircut(
                 id=template["id"],
@@ -983,6 +745,8 @@ class GeminiLookbookGenerator:
                 subtitle=template["subtitle"],
                 category=template["category"],
                 generated_image_url=image_url,
+                reference_image_url=ref_url,
+                is_ai_tryon=is_ai_tryon,
                 fade_type=template["fade_type"],
                 guard_number=template["guard_number"],
                 top_length=template["top_length"],

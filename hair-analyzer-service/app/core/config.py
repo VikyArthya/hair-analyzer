@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     HAIRFASTGAN_SPACE: str = "AIRI-Institute/HairFastGAN"
     TRYON_TIMEOUT_SECONDS: int = 90
 
+    # Google Gemini AI Configuration
+    GEMINI_API_KEY: str = ""
+    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
+    GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
+    DEFAULT_STYLES_COUNT: int = 6
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

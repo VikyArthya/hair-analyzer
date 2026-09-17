@@ -39,6 +39,23 @@ export interface BackAnalysis {
   notes: string;
 }
 
+export interface GeneratedClientHaircut {
+  id: string;
+  name: string;
+  subtitle: string;
+  category: string;
+  generated_image_url: string;
+  fade_type: string;
+  guard_number: string;
+  top_length: string;
+  why_it_fits: string;
+  styling_difficulty?: 'Mudah' | 'Sedang' | 'Tinggi' | string;
+  styling_tips?: string[];
+  recommended_products?: string[];
+  barber_notes: string;
+  match_percentage?: number;
+}
+
 export interface FaceAnalysisData {
   face_shape: 'square' | 'oval' | 'round' | 'oblong' | 'heart' | 'diamond' | string;
   confidence_score: number;
@@ -47,6 +64,7 @@ export interface FaceAnalysisData {
   haircut_guidance: HaircutGuidance;
   profile_analysis?: ProfileAnalysis | null;
   back_analysis?: BackAnalysis | null;
+  client_lookbook?: GeneratedClientHaircut[];
 }
 
 export interface FaceAnalysisResponse {

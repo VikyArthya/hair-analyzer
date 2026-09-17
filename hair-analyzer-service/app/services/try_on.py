@@ -121,6 +121,37 @@ class VirtualTryOnService:
             return customer_bytes
 
 
+    def _run_hf_inference(self, cust_path: str, shape_path: Optional[str]) -> Optional[bytes]:
+        """Perform Hugging Face HairFastGAN space inference."""
+        try:
+            from gradio_client import Client, handle_file
+
+            client = Client(
+                settings.HAIRFASTGAN_SPACE,
+                hf_token=settings.HF_TOKEN if settings.HF_TOKEN else None,
+            )
+
+            ref_path = shape_path if shape_path else cust_path
+            predict_result = client.predict(
+                face=handle_file(cust_path),
+                shape=handle_file(ref_path),
+                color=handle_file(cust_path),
+                api_name="/predict",
+            )
+
+            generated_path = None
+            if isinstance(predict_result, (list, tuple)) and len(predict_result) > 0:
+                generated_path = predict_result[0]
+            elif isinstance(predict_result, str):
+                generated_path = predict_result
+
+            if generated_path and os.path.exists(generated_path):
+                with open(generated_path, "rb") as gf:
+                    return gf.read()
+        except Exception as hf_err:
+            logger.warning("Hugging Face HairFastGAN Space call skipped or failed: %s", hf_err)
+        return None
+
     async def execute_try_on(
         self,
         customer_image_bytes: bytes,
@@ -138,60 +169,27 @@ class VirtualTryOnService:
         hf_success = False
         result_bytes: Optional[bytes] = None
 
+        # Write customer and haircut images to temp files
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_cust:
+            f_cust.write(customer_image_bytes)
+            cust_path = f_cust.name
+
+        shape_path = None
+        if haircut_bytes:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_shape:
+                f_shape.write(haircut_bytes)
+                shape_path = f_shape.name
+
         try:
-            from gradio_client import Client, handle_file
-
-            # Write customer and haircut images to temp files
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_cust:
-                f_cust.write(customer_image_bytes)
-                cust_path = f_cust.name
-
-            shape_path = None
-            if haircut_bytes:
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f_shape:
-                    f_shape.write(haircut_bytes)
-                    shape_path = f_shape.name
-
-            try:
-                # Initialize client with timeout
-                client = Client(
-                    settings.HAIRFASTGAN_SPACE,
-                    hf_token=settings.HF_TOKEN if settings.HF_TOKEN else None,
-                )
-
-                # HairFastGAN takes: face (customer), shape (haircut), color (customer or haircut)
-                # Parameters map to handle_file
-                ref_path = shape_path if shape_path else cust_path
-                predict_result = client.predict(
-                    face=handle_file(cust_path),
-                    shape=handle_file(ref_path),
-                    color=handle_file(cust_path),
-                    api_name="/predict",
-                )
-
-                # Predict result can be a tuple or string path to generated image
-                generated_path = None
-                if isinstance(predict_result, (list, tuple)) and len(predict_result) > 0:
-                    generated_path = predict_result[0]
-                elif isinstance(predict_result, str):
-                    generated_path = predict_result
-
-                if generated_path and os.path.exists(generated_path):
-                    with open(generated_path, "rb") as gf:
-                        result_bytes = gf.read()
-                    hf_success = True
-                    logger.info("Successfully generated hairstyle using Hugging Face HairFastGAN.")
-
-            except Exception as hf_err:
-                logger.warning("Hugging Face HairFastGAN Space call skipped or failed: %s", hf_err)
-            finally:
-                if os.path.exists(cust_path):
-                    os.unlink(cust_path)
-                if shape_path and os.path.exists(shape_path):
-                    os.unlink(shape_path)
-
-        except ImportError:
-            logger.info("gradio_client not installed or not available, using fallback blender.")
+            result_bytes = self._run_hf_inference(cust_path, shape_path)
+            if result_bytes:
+                hf_success = True
+                logger.info("Successfully generated hairstyle using Hugging Face HairFastGAN.")
+        finally:
+            if os.path.exists(cust_path):
+                os.unlink(cust_path)
+            if shape_path and os.path.exists(shape_path):
+                os.unlink(shape_path)
 
         # If HF succeeded, use its result; otherwise use smart fallback blend
         if not hf_success or not result_bytes:

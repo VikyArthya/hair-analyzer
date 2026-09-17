@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
-import { HaircutModel } from '@/types';
+import { HaircutModel, GeneratedClientHaircut } from '@/types';
 import { X, Scissors, Sparkles, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { HaircutVisualOverlay } from '@/components/consultation/HaircutVisualOverlay';
 
 interface BarberDisplayModalProps {
-  haircut: HaircutModel | null;
+  haircut: (HaircutModel | GeneratedClientHaircut) | null;
   clientPhoto: string | null;
   faceShapeName: string;
   isOpen: boolean;
@@ -22,6 +23,29 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
   onClose,
 }) => {
   if (!isOpen || !haircut) return null;
+
+  // Normalize properties from either GeneratedClientHaircut or HaircutModel
+  const haircutImage =
+    'generated_image_url' in haircut && haircut.generated_image_url
+      ? haircut.generated_image_url
+      : (haircut as HaircutModel).imageUrl;
+
+  const fadeType =
+    'fade_type' in haircut ? haircut.fade_type : (haircut as HaircutModel).fadeType;
+  const guardNumber =
+    'guard_number' in haircut ? haircut.guard_number : (haircut as HaircutModel).guardNumber;
+  const topLength =
+    'top_length' in haircut ? haircut.top_length : (haircut as HaircutModel).topLength;
+  const barberNotes =
+    'barber_notes' in haircut ? haircut.barber_notes : (haircut as HaircutModel).barberNotes;
+  const stylingTips =
+    'styling_tips' in haircut
+      ? haircut.styling_tips || []
+      : (haircut as HaircutModel).stylingTips || [];
+  const recommendedProducts =
+    'recommended_products' in haircut
+      ? haircut.recommended_products || []
+      : (haircut as HaircutModel).recommendedProducts || [];
 
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-md overflow-y-auto flex flex-col p-4 md:p-8 animate-in fade-in duration-200">
@@ -54,11 +78,12 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
       <div className="max-w-5xl mx-auto w-full py-6 flex-1 flex flex-col gap-6">
         {/* Side-by-Side Visual Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          {/* Client Captured Photo */}
+          {/* Client Captured Photo (Before) */}
           <div className="relative rounded-3xl overflow-hidden border-2 border-barber-gold/40 bg-surface shadow-2xl flex flex-col">
             <div className="p-3 bg-surface-border/80 flex items-center justify-between border-b border-surface-border">
-              <span className="text-xs font-bold uppercase tracking-wider text-barber-gold">
-                Foto Klien Anda
+              <span className="text-xs font-bold uppercase tracking-wider text-barber-gold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-barber-gold" />
+                Foto Asli Klien (Saat Ini)
               </span>
               <Badge variant="default" className="text-[11px]">
                 {faceShapeName}
@@ -79,23 +104,29 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
             </div>
           </div>
 
-          {/* Haircut Target Model */}
-          <div className="relative rounded-3xl overflow-hidden border-2 border-accent-cyan/40 bg-surface shadow-2xl flex flex-col">
+          {/* Client Face with New Haircut (Gemini AI Lookbook) */}
+          <div className="relative rounded-3xl overflow-hidden border-2 border-accent-emerald/40 bg-surface shadow-2xl flex flex-col">
             <div className="p-3 bg-surface-border/80 flex items-center justify-between border-b border-surface-border">
-              <span className="text-xs font-bold uppercase tracking-wider text-accent-cyan">
-                Referensi Gaya Rambut
+              <span className="text-xs font-bold uppercase tracking-wider text-accent-emerald flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Wajah Klien + Gaya Baru (Gemini AI)
               </span>
-              <Badge variant="cyan" className="text-[11px]">
+              <Badge variant="emerald" className="text-[11px] font-bold">
                 {haircut.category}
               </Badge>
             </div>
             <div className="relative flex-1 min-h-[320px] md:min-h-[420px] bg-black">
               <img
-                src={haircut.imageUrl}
+                src={haircutImage}
                 alt={haircut.name}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/60 to-transparent p-5">
+              <HaircutVisualOverlay
+                styleId={haircut.id}
+                styleName={haircut.name}
+                category={haircut.category}
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 z-20">
                 <h3 className="text-2xl font-black text-white">{haircut.name}</h3>
                 <p className="text-sm text-zinc-300">{haircut.subtitle}</p>
               </div>
@@ -125,7 +156,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 Tipe Fade / Samping
               </span>
               <span className="text-base font-bold text-accent-cyan block">
-                {haircut.fadeType}
+                {fadeType}
               </span>
             </div>
 
@@ -134,7 +165,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 Ukuran Sepatu (Guard Number)
               </span>
               <span className="text-base font-bold text-barber-gold block">
-                {haircut.guardNumber}
+                {guardNumber}
               </span>
             </div>
 
@@ -143,7 +174,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 Panjang Bagian Atas
               </span>
               <span className="text-base font-bold text-accent-emerald block">
-                {haircut.topLength}
+                {topLength}
               </span>
             </div>
           </div>
@@ -154,7 +185,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
               Catatan Khusus Barber
             </span>
             <p className="text-sm font-medium text-zinc-200 leading-relaxed">
-              {haircut.barberNotes}
+              {barberNotes}
             </p>
           </div>
 
@@ -164,7 +195,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 Langkah Styling Harian
               </span>
               <ul className="space-y-1.5">
-                {haircut.stylingTips.map((tip, i) => (
+                {stylingTips.map((tip, i) => (
                   <li key={i} className="text-xs text-zinc-300 flex items-start gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-accent-emerald flex-shrink-0 mt-0.5" />
                     <span>{tip}</span>
@@ -178,7 +209,7 @@ export const BarberDisplayModal: React.FC<BarberDisplayModalProps> = ({
                 Rekomendasi Produk Barbershop
               </span>
               <div className="flex flex-wrap gap-2">
-                {haircut.recommendedProducts.map((prod, i) => (
+                {recommendedProducts.map((prod, i) => (
                   <span
                     key={i}
                     className="text-xs font-semibold px-3 py-1 rounded-xl bg-surface-border border border-zinc-700 text-zinc-200"

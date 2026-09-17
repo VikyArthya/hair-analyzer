@@ -81,19 +81,19 @@ export default function ScanPage() {
     setAnalysisStatus('Mendeteksi 468 titik landmark wajah (MediaPipe Face Mesh)...');
 
     const statusTimer1 = setTimeout(() => {
-      setAnalysisStatus('Menganalisis proporsi tulang pipi, dahi, dan rahang...');
+      setAnalysisStatus('Menganalisis proporsi tulang pipi, dahi, dan sudut rahang...');
     }, 800);
 
     const statusTimer2 = setTimeout(() => {
-      setAnalysisStatus('Menghitung rasio panjang vs lebar & sudut rahang...');
-    }, 1600);
+      setAnalysisStatus('Google Gemini AI me-render 6-8 variasi gaya rambut di wajah klien...');
+    }, 1800);
 
     try {
       const analysisResult: FaceAnalysisData = await analyzeFace(images);
 
       clearTimeout(statusTimer1);
       clearTimeout(statusTimer2);
-      setAnalysisStatus('Selesai! Menyiapkan katalog rekomendasi...');
+      setAnalysisStatus('Selesai! Menyiapkan lookbook personal klien...');
 
       // Save consultation to sessionStorage for /result page
       const sessionData = {

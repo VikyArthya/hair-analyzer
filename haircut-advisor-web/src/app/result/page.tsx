@@ -12,7 +12,6 @@ import {
   Share2,
   RotateCcw,
   ShieldCheck,
-  Flame,
   Camera,
   AlertTriangle,
   Award,
@@ -20,15 +19,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { HaircutCard } from '@/components/consultation/HaircutCard';
 import { BarberDisplayModal } from '@/components/consultation/BarberDisplayModal';
-import { VirtualTryOnModal } from '@/components/consultation/VirtualTryOnModal';
-import { HairstyleGalleryWithFace } from '@/components/consultation/HairstyleGalleryWithFace';
-import { HAIRCUT_CATALOG, FACE_SHAPE_DETAILS } from '@/data/haircutCatalog';
-
+import { ClientLookbookGallery } from '@/components/consultation/ClientLookbookGallery';
+import { FACE_SHAPE_DETAILS } from '@/data/haircutCatalog';
+import { getLookbookForShape } from '@/data/lookbookCatalog';
 import { getSimulatedAnalysis } from '@/services/api';
-import { FaceAnalysisData, HaircutModel, ClientImages, VarietyHairstyle } from '@/types';
-
+import { FaceAnalysisData, GeneratedClientHaircut, ClientImages } from '@/types';
 
 export default function ResultPage() {
   const router = useRouter();
@@ -39,10 +35,8 @@ export default function ResultPage() {
     back: null,
   });
   const [isMetricsOpen, setIsMetricsOpen] = useState<boolean>(false);
-  const [selectedHaircutForBarber, setSelectedHaircutForBarber] = useState<HaircutModel | null>(null);
-  const [selectedHaircutForTryOn, setSelectedHaircutForTryOn] = useState<HaircutModel | null>(null);
+  const [selectedHaircutForBarber, setSelectedHaircutForBarber] = useState<GeneratedClientHaircut | null>(null);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
-
 
   useEffect(() => {
     try {
@@ -76,11 +70,18 @@ export default function ResultPage() {
 
   const shapeKey = analysisData.face_shape.toLowerCase();
   const shapeDetails = FACE_SHAPE_DETAILS[shapeKey] || FACE_SHAPE_DETAILS.square;
-  const recommendedHaircuts = HAIRCUT_CATALOG[shapeKey] || HAIRCUT_CATALOG.square;
+
+  // Active Lookbook: Prefer Gemini-generated items from backend; fallback to shape templates
+  const activeLookbook: GeneratedClientHaircut[] =
+    analysisData.client_lookbook && analysisData.client_lookbook.length > 0
+      ? analysisData.client_lookbook
+      : getLookbookForShape(analysisData.face_shape, clientImages.front);
+
   const confidencePercent = Math.round(analysisData.confidence_score * 100);
 
   const handleShare = async () => {
-    const text = `Hasil Analisis Bentuk Wajah BarberVision: ${shapeDetails.nameId}. Rekomendasi gaya rambut: ${recommendedHaircuts[0]?.name}.`;
+    const primaryStyle = activeLookbook[0]?.name || 'Gaya Rambut Rekomendasi';
+    const text = `Hasil Analisis Bentuk Wajah BarberVision: ${shapeDetails.nameId}. Rekomendasi lookbook klien: ${primaryStyle}.`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -98,26 +99,11 @@ export default function ResultPage() {
     }
   };
 
-  const handleShowVarietyToBarber = (variety: VarietyHairstyle) => {
-    setSelectedHaircutForBarber({
-      id: variety.id,
-      name: variety.name,
-      subtitle: variety.tagline,
-      category: 'Barbershop Top Pick',
-      imageUrl: variety.imageUrl,
-      matchReason: variety.tagline,
-      fadeType: variety.fadeType,
-      guardNumber: variety.guardNumber,
-      topLength: variety.topLength,
-      stylingDifficulty: 'Sedang',
-      stylingTips: variety.stylingTips,
-      recommendedProducts: variety.recommendedProducts,
-      barberNotes: variety.barberNotes,
-    });
+  const handleShowToBarber = (haircut: GeneratedClientHaircut) => {
+    setSelectedHaircutForBarber(haircut);
   };
 
   return (
-
     <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4 py-6 gap-6">
       {/* Top Banner Action Bar */}
       <div className="flex items-center justify-between pb-3 border-b border-surface-border">
@@ -166,7 +152,7 @@ export default function ResultPage() {
             )}
             <div className="absolute top-2 left-2">
               <Badge variant="default" className="text-[10px] px-1.5 py-0.5 bg-black/80 backdrop-blur">
-                Klien
+                Foto Klien
               </Badge>
             </div>
           </div>
@@ -311,15 +297,15 @@ export default function ResultPage() {
         )}
       </Card>
 
-      {/* Dynamic Hairstyle Gallery with Customer Face & 5 Angle Views */}
+      {/* Main Feature: Client Lookbook Gallery with 6-8 Haircut Variations on Client's Face */}
       <section className="pt-2">
-        <HairstyleGalleryWithFace
-          customerPhotoUrl={clientImages.front}
-          onUpdateCustomerPhoto={(url) => setClientImages((prev) => ({ ...prev, front: url }))}
-          onShowToBarber={handleShowVarietyToBarber}
+        <ClientLookbookGallery
+          lookbook={activeLookbook}
+          clientPhotoUrl={clientImages.front}
+          faceShapeName={shapeDetails.nameId}
+          onShowToBarber={handleShowToBarber}
         />
       </section>
-
 
       {/* Styles to Avoid Warning Section */}
       <section className="rounded-3xl border border-accent-rose/30 bg-accent-rose/5 p-6 space-y-3">
@@ -359,10 +345,10 @@ export default function ResultPage() {
           </Button>
         </Link>
 
-        {recommendedHaircuts[0] && (
+        {activeLookbook[0] && (
           <Button
             size="lg"
-            onClick={() => setSelectedHaircutForBarber(recommendedHaircuts[0])}
+            onClick={() => setSelectedHaircutForBarber(activeLookbook[0])}
             className="w-full sm:w-auto h-12 rounded-xl gap-2 font-bold text-xs uppercase shadow-lg shadow-barber-gold/20"
           >
             <Scissors className="w-4 h-4" />
@@ -378,18 +364,6 @@ export default function ResultPage() {
         faceShapeName={shapeDetails.nameId}
         isOpen={Boolean(selectedHaircutForBarber)}
         onClose={() => setSelectedHaircutForBarber(null)}
-      />
-
-      {/* Interactive Virtual Try-On Before/After Modal */}
-      <VirtualTryOnModal
-        isOpen={Boolean(selectedHaircutForTryOn)}
-        onClose={() => setSelectedHaircutForTryOn(null)}
-        haircut={selectedHaircutForTryOn}
-        customerPhotoUrl={clientImages.front}
-        onShowToBarber={(haircut) => {
-          setSelectedHaircutForTryOn(null);
-          setSelectedHaircutForBarber(haircut);
-        }}
       />
     </div>
   );

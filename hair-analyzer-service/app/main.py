@@ -24,6 +24,7 @@ from app.schemas.face import (
 from app.services.face_mesh import face_mesh_service
 from app.services.classifier import FaceShapeClassifier
 from app.services.try_on import virtual_try_on_service
+from app.services.gemini_generator import gemini_lookbook_generator
 
 
 
@@ -183,6 +184,13 @@ async def analyze_face(
 
     # 4. Classify face shape and retrieve haircut guidance
     analysis_data = FaceShapeClassifier.classify(metrics)
+
+    # 4.1 Generate 6-8 tailored hairstyles directly on the client's photographed face via Gemini AI
+    analysis_data.client_lookbook = await gemini_lookbook_generator.generate_lookbook_async(
+        client_image_bytes=front_bytes,
+        face_shape=analysis_data.face_shape,
+        max_styles=settings.DEFAULT_STYLES_COUNT,
+    )
 
     # 5. Process optional side profile photo
     if side_image and side_image.filename:

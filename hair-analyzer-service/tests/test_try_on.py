@@ -67,13 +67,14 @@ def test_try_on_mocked_hf_success(tmp_path):
         "haircut_name": "Classic Pompadour",
     }
 
-    mock_client = MagicMock()
-    mock_client.predict.return_value = fake_after_path
-
-    with patch("gradio_client.Client", return_value=mock_client):
+    with patch(
+        "app.services.try_on.virtual_try_on_service._run_hf_inference",
+        return_value=fake_bytes,
+    ):
         response = client.post("/api/v1/try-on", files=files, data=data)
         assert response.status_code == 200
         res = response.json()
         assert res["status"] == "success"
         assert res["data"]["is_simulation"] is False
         assert res["data"]["after_image_base64"].startswith("data:image/jpeg;base64,")
+

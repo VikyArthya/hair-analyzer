@@ -62,7 +62,7 @@ export default function HomePage() {
             </h1>
 
             <p className="text-sm md:text-base text-zinc-300 leading-relaxed">
-              Pindai 3 sudut wajah klien (Depan, Samping, Belakang) dengan panduan kamera pintar. AI mendeteksi 468 titik landmark wajah secara akurat dan merekomendasikan gaya rambut terbaik dengan spesifikasi clipper guard.
+              Pindai foto wajah klien dengan panduan kamera pintar. MediaPipe Face Mesh mendeteksi proporsi rahang & bentuk wajah, lalu Google Gemini AI me-render 6-8 variasi gaya rambut terbaik langsung di wajah klien lengkap dengan panduan clipper guard untuk barber.
             </p>
 
             {/* Feature Badges */}

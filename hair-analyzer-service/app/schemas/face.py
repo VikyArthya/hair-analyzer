@@ -131,6 +131,29 @@ class BackAnalysis(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class GeneratedClientHaircut(BaseModel):
+    """Personalized haircut visualization generated directly on the client's face via Gemini AI."""
+
+    id: str = Field(..., description="Unique haircut identifier.", examples=["sq-1"])
+    name: str = Field(..., description="Haircut style name.", examples=["Textured French Crop"])
+    subtitle: str = Field(..., description="Descriptive subtitle.", examples=["Modern Clean Drop Fade"])
+    category: str = Field(..., description="Haircut category.", examples=["Crop Style"])
+    generated_image_url: str = Field(
+        ...,
+        description="Base64 data URI or image URL of the client's own face styled with this haircut.",
+    )
+    fade_type: str = Field(..., description="Fade boundary recommendation.", examples=["Mid Drop Fade"])
+    guard_number: str = Field(..., description="Recommended clipper guard.", examples=["#1.5 to #0.5"])
+    top_length: str = Field(..., description="Length of top hair.", examples=["3 - 4 cm"])
+    why_it_fits: str = Field(..., description="Geometric rationale for this client's facial structure.")
+    styling_difficulty: str = Field(default="Mudah", description="Styling difficulty (Mudah/Sedang/Tinggi).")
+    styling_tips: List[str] = Field(default_factory=list, description="Step-by-step daily styling tips.")
+    recommended_products: List[str] = Field(default_factory=list, description="Barbershop styling products.")
+    barber_notes: str = Field(..., description="Technical clipper & scissor notes for the barber.")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class FaceAnalysisData(BaseModel):
     """Data payload for face shape analysis result."""
 
@@ -147,6 +170,10 @@ class FaceAnalysisData(BaseModel):
     metrics: FaceMetrics
     features_detected: FeaturesDetected
     haircut_guidance: HaircutGuidance
+    client_lookbook: List[GeneratedClientHaircut] = Field(
+        default_factory=list,
+        description="6 to 8 tailored hairstyle variations rendered directly on the client's own face via Gemini AI.",
+    )
     profile_analysis: Optional[ProfileAnalysis] = Field(
         default=None,
         description="Optional side-view analysis if side_image was provided.",
